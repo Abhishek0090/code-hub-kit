@@ -50,7 +50,7 @@ paste-sized parts) that recreates this project on another machine. See `HOW-TO-S
 
 ## Code map
 
-- `server.ts`: Next.js plus the WebSocket server; `src/server/rooms.ts` is the in-memory Yjs room relay
+- `server.ts`: Next.js plus the WebSocket server; `relay/rooms.ts` is the in-memory Yjs room relay, and `relay/server.ts` runs it standalone for Vercel deployments
 - `src/app/(tools)/`: one folder per tool; `src/components/DashboardShell.tsx` is the sidebar layout
 - `src/app/api/`: `run` (Piston proxy), `convert` (Claude), `status` (which optional keys are set)
 - `src/lib/runner.ts`: in-browser runners (sandboxed worker for JS/TS, Pyodide for Python)

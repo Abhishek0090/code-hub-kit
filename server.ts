@@ -6,7 +6,7 @@
 import { createServer } from "node:http";
 import next from "next";
 import { WebSocketServer } from "ws";
-import { joinRoom, ROOM_ID, roomStats } from "./src/server/rooms";
+import { joinRoom, ROOM_ID, roomStats } from "./relay/rooms";
 
 const port = Number(process.env.PORT || 3000);
 const dev = !process.argv.includes("--production");
@@ -41,7 +41,22 @@ app.prepare().then(() => {
     wss.handleUpgrade(req, socket, head, (ws) => joinRoom(room, ws));
   });
 
-  server.listen(port, () => {
-    console.log(`> Ready on http://localhost:${port} (${dev ? "development" : "production"})`);
+  // Like `next dev`: if the port is taken, try the next one (up to 10), unless PORT was set explicitly.
+  let attempt = port;
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE" && !process.env.PORT && attempt < port + 10) {
+      console.log(`  Port ${attempt} is in use, trying ${attempt + 1}...`);
+      server.listen(++attempt);
+      return;
+    }
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${attempt} is in use. Stop the other server or pick a port: PORT=4000 npm run dev`);
+      process.exit(1);
+    }
+    throw err;
   });
+  server.on("listening", () => {
+    console.log(`> Ready on http://localhost:${attempt} (${dev ? "development" : "production"})`);
+  });
+  server.listen(attempt);
 });

@@ -21,8 +21,10 @@ Next.js doesn't host long-lived WebSockets in route handlers, so the app uses a 
 "Custom Server" guide in the Next.js docs). The server also forwards
 non-room WebSocket upgrades (Next's hot reload in development) to `app.getUpgradeHandler()`.
 
-The consequence: Code Hub needs a host that runs a long-lived Node process. Serverless platforms such as Vercel
-can't keep the room sockets open.
+On a host that runs a long-lived Node process, that one process is the whole app. Serverless platforms such as
+Vercel can't keep WebSocket connections open, so there the app runs on Vercel and the room logic runs separately as
+the standalone relay in `relay/` (same `rooms.ts`), which the browser reaches through `NEXT_PUBLIC_REALTIME_URL`.
+See 02-getting-started.md for both setups.
 
 ## What runs where
 
@@ -41,8 +43,11 @@ Most work happens in the browser. The server only does what the browser can't.
 
 ```text
 server.ts                      Custom server: Next.js + WebSocket upgrade routing, /api/realtime stats
+relay/                         Realtime relay, its own small npm package
+  rooms.ts                     Codeshare rooms (Yjs sync + awareness protocol), memory only
+  server.ts                    Standalone relay server, for when the app runs on Vercel
+render.yaml                    Render Blueprint that deploys relay/
 src/
-  server/rooms.ts              Codeshare room relay (Yjs sync + awareness protocol), memory only
   app/
     layout.tsx                 Root HTML, fonts, metadata
     globals.css                Tailwind v4, colour tokens, shared component classes (.card, .btn-primary, ...)

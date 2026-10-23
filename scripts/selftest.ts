@@ -156,6 +156,37 @@ async function main() {
       check(up.status === 0 && /1 updated/.test(up.stdout), "node: update restores an edited file");
       check(!readdirSync(upd).includes("old-file.ts"), "node: --prune removes a dropped file");
 
+      // Update script: applies onto a copy that has no manifest, keeps the user's own files, removes obsolete ones.
+      const [updater] = await generateScripts({
+        name: basename(source),
+        files: packed,
+        emptyDirs,
+        formats: ["node"],
+        partBytes: null,
+        leftOut,
+        update: { projectNames: ["fixture"], obsolete: ["old-module/removed.ts"] },
+      });
+      const existing = join(root, "existing-copy");
+      mkdirSync(join(existing, "old-module"), { recursive: true });
+      writeFileSync(join(existing, "package.json"), JSON.stringify({ name: "fixture" }));
+      writeFileSync(join(existing, "old-module/removed.ts"), "old");
+      writeFileSync(join(existing, "mine.txt"), "user file");
+      writeFileSync(join(existing, updater.fileName), updater.content);
+      const applied = run("node", join(existing, updater.fileName), existing, ["--no-install"]);
+      if (applied.status) console.log(applied.stdout, applied.stderr);
+      check(
+        applied.status === 0 &&
+          !sameTree(expected, existing).length &&
+          !readdirSync(existing).includes("old-module") &&
+          readFileSync(join(existing, "mine.txt"), "utf8") === "user file",
+        "update script: applies, removes obsolete file and its folder, keeps user files",
+      );
+      const other = join(root, "other-project");
+      mkdirSync(other);
+      writeFileSync(join(other, "package.json"), JSON.stringify({ name: "something-else" }));
+      writeFileSync(join(other, updater.fileName), updater.content);
+      check(run("node", join(other, updater.fileName), other).status !== 0, "update script: refuses a different project");
+
       // CRLF: a bash script saved by a Windows editor still runs.
       const crlfDir = join(root, "crlf");
       mkdirSync(crlfDir);

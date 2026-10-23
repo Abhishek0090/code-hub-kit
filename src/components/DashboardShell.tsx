@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { realtimeEndpoints } from "@/lib/codeshare";
 
 interface NavItem {
   href: string;
@@ -61,7 +62,7 @@ function useLiveRooms(): number | null {
   useEffect(() => {
     let stop = false;
     const load = () =>
-      fetch("/api/realtime")
+      fetch(realtimeEndpoints().stats)
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { rooms: number } | null) => !stop && setRooms(d ? d.rooms : null))
         .catch(() => !stop && setRooms(null));

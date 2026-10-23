@@ -2,7 +2,7 @@ import { estimateCompressed, gzipAsync, sha256, toBase64, wrapLines } from "./en
 import { guessMode } from "./filters";
 import { createTar } from "./tar";
 import { bashScript } from "./templates/bash";
-import type { ScriptMeta } from "./templates/meta";
+import type { ScriptMeta, UpdateOptions } from "./templates/meta";
 import { nodeScript } from "./templates/node";
 import { powershellScript } from "./templates/powershell";
 import type { GeneratedScript, PackFile, ScriptFormat, SourceFile } from "./types";
@@ -105,13 +105,17 @@ export interface GenerateInput {
   /** Target size of each script in bytes, or null for a single script. */
   partBytes: number | null;
   leftOut: string[];
+  /** Makes an update script (`<name>-update`) that applies onto an existing copy. Node format only. */
+  update?: UpdateOptions;
+  /** Replaces the guessed "next steps" printed at the end. */
+  nextSteps?: string[];
 }
 
 export async function generateScripts(input: GenerateInput): Promise<GeneratedScript[]> {
   const slug = slugify(input.name);
   const groups = splitIntoParts(input.files, input.partBytes);
   const parts = groups.length;
-  const nextSteps = guessNextSteps(input.files, input.leftOut);
+  const nextSteps = input.nextSteps ?? guessNextSteps(input.files, input.leftOut);
   const generatedAt = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
   const out: GeneratedScript[] = [];
 
@@ -129,10 +133,12 @@ export async function generateScripts(input: GenerateInput): Promise<GeneratedSc
       nextSteps,
       leftOut: input.leftOut,
       generatedAt,
+      update: input.update ?? null,
     };
     const payload = wrapLines(toBase64(gz), LINE_WIDTH);
     for (const format of input.formats) {
-      const base = parts === 1 ? `${slug}-setup` : `${slug}-part-${i + 1}-of-${parts}`;
+      const kind = input.update ? "update" : "setup";
+      const base = parts === 1 ? `${slug}-${kind}` : `${slug}-${kind === "update" ? "update-" : ""}part-${i + 1}-of-${parts}`;
       out.push({
         format,
         fileName: `${base}.${FORMATS[format].ext}`,

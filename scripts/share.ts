@@ -1,6 +1,7 @@
 /**
  * Builds copy-paste setup scripts for this project into code-hub-share/, using the app's own generator:
- *   code-hub-setup.mjs / .sh / .ps1   one file with everything (new machine or update)
+ *   code-hub-setup.mjs / .sh / .ps1   one file with everything, for a new machine
+ *   code-hub-update.mjs                applies this version onto an existing copy
  *   parts/                                  the Node script split into paste-sized pieces
  *   HOW-TO-SETUP.md                         instructions
  * Run: npm run share
@@ -18,6 +19,14 @@ const OUT = join(ROOT, OUT_DIR);
 const NAME = "code-hub";
 const PART_BYTES = 90 * 1024;
 
+/** Earlier names of this project, so the update script recognises copies made under them. */
+const EARLIER_NAMES = ["code-to-script"];
+/** Files earlier versions shipped and this one doesn't. The update script deletes them if present. */
+const OBSOLETE = [
+  "src/app/page.tsx", // moved to src/app/(tools)/page.tsx; both would claim "/"
+  "src/server/rooms.ts", // moved to relay/rooms.ts
+];
+
 const kb = (s: GeneratedScript) => `${Math.round(s.content.length / 1024)} KB`;
 
 async function main() {
@@ -30,10 +39,17 @@ async function main() {
   const base = { name: NAME, files: packed, emptyDirs, leftOut };
   const single = await generateScripts({ ...base, formats: ["node", "bash", "powershell"], partBytes: null });
   const parts = await generateScripts({ ...base, formats: ["node"], partBytes: PART_BYTES });
+  const [update] = await generateScripts({
+    ...base,
+    formats: ["node"],
+    partBytes: null,
+    update: { projectNames: [NAME, ...EARLIER_NAMES], obsolete: OBSOLETE },
+    nextSteps: ["npm run dev"],
+  });
 
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(join(OUT, "parts"), { recursive: true });
-  for (const s of single) writeFileSync(join(OUT, s.fileName), s.content);
+  for (const s of [...single, update]) writeFileSync(join(OUT, s.fileName), s.content);
   for (const s of parts) writeFileSync(join(OUT, "parts", s.fileName), s.content);
 
   const node = single.find((s) => s.format === "node")!;
@@ -67,7 +83,8 @@ npm run dev
 
 Then open http://localhost:3000. Needs Node.js 20.9 or newer to run the app (\`node -v\`).
 \`npm run dev\` starts \`server.ts\`: Next.js plus the WebSocket for codeshare rooms, on one port. For production run
-\`npm run build\` then \`npm start\`, on a Node host (VPS, Render, Railway). Vercel can't run the WebSocket server.
+\`npm run build\` then \`npm start\` on a Node host, or deploy to Vercel plus the small relay in \`relay/\` (Vercel
+can't run the WebSocket itself; see \`docs/02-getting-started.md\`).
 
 ### Optional keys
 
@@ -83,16 +100,26 @@ No Node yet? Use \`${bash.fileName}\` (${kb(bash)}, macOS / Linux / Git Bash: \`
 \`${ps.fileName}\` (${kb(ps)}, Windows: \`powershell -ExecutionPolicy Bypass -File .\\${ps.fileName}\`) to get the files,
 then install Node to run the app.
 
-## Update a machine that already has it
+## Update an existing copy (${kb(update)})
 
-Copy \`${node.fileName}\` into the project folder (the one with \`package.json\`) and run:
+Use \`${update.fileName}\`. It works on any earlier copy of this project (also one named \`code-to-script\`), however
+you got it: an earlier script, git, or a zip. If the copy is a git repo, commit first so you can review the diff.
+
+1. Copy \`${update.fileName}\` into the project folder (the one with \`package.json\`).
+2. Preview, then apply:
 
 \`\`\`bash
-node ${node.fileName} --force --prune
+node ${update.fileName} --dry-run
+node ${update.fileName}
+npm run dev
 \`\`\`
 
-\`--force\` is only needed the first time, if that copy didn't come from these scripts. \`--prune\` deletes files
-this version no longer has. Add \`--dry-run\` to only see what would change. Run \`npm install\` if \`package.json\` changed.
+It overwrites project files with this version (local edits to those files are replaced), deletes files this
+version no longer uses (only project files; add \`--keep\` to keep them), and runs \`npm install\` when packages
+changed (\`--no-install\` to skip). \`.env.local\` and your other files are left alone.
+
+On Vercel: after updating, commit and push as usual. If you run the relay on Render and \`relay/\` changed, it
+redeploys from the same push.
 
 ## ${parts.length} smaller parts (easier to paste through codeshare)
 
@@ -115,7 +142,7 @@ Delete the setup files from the project folder afterwards. This \`${OUT_DIR}\` f
   writeFileSync(join(OUT, "HOW-TO-SETUP.md"), howTo);
 
   console.log(`${packed.length} files packed into ${OUT_DIR}/`);
-  for (const s of single) console.log(`  ${s.fileName.padEnd(36)} ${kb(s)}`);
+  for (const s of [...single, update]) console.log(`  ${s.fileName.padEnd(36)} ${kb(s)}`);
   for (const s of parts) console.log(`  parts/${s.fileName.padEnd(30)} ${kb(s)} (${s.fileCount} files)`);
   if (leftOut.length) console.log(`Left out (secrets): ${leftOut.join(", ")}`);
 }

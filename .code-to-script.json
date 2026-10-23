@@ -1,6 +1,6 @@
 {
  "name": "code-hub",
- "generatedAt": "2026-10-23 08:56 UTC",
+ "generatedAt": "2026-10-23 11:22 UTC",
  "parts": 1,
  "partsDone": [
   1
@@ -25,6 +25,11 @@
   "next.config.ts",
   "package-lock.json",
   "package.json",
+  "relay/package-lock.json",
+  "relay/package.json",
+  "relay/rooms.ts",
+  "relay/server.ts",
+  "render.yaml",
   "scripts/read-project.ts",
   "scripts/selftest.ts",
   "scripts/share.ts",
@@ -66,7 +71,6 @@
   "src/lib/runner.ts",
   "src/lib/sources.ts",
   "src/lib/useServerStatus.ts",
-  "src/server/rooms.ts",
   "src/types/imagetracerjs.d.ts",
   "tsconfig.json"
  ]

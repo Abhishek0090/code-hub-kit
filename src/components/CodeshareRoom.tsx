@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { yCollab } from "y-codemirror.next";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
-import { COLORS, loadName, saveName } from "@/lib/codeshare";
+import { COLORS, loadName, realtimeEndpoints, saveName } from "@/lib/codeshare";
 import { findLanguage, LANGUAGES } from "@/lib/languages";
 import CodeEditor from "./CodeEditor";
 import LanguageSelect from "./LanguageSelect";
@@ -20,6 +20,9 @@ interface Person {
 
 type Status = "connecting" | "connected" | "disconnected";
 
+/** Set at build time when the relay runs separately (e.g. the app is on Vercel). */
+const RELAY_URL = process.env.NEXT_PUBLIC_REALTIME_URL?.trim() || null;
+
 export default function CodeshareRoom({ room }: { room: string }) {
   const [collab, setCollab] = useState<Extension | null>(null);
   const [status, setStatus] = useState<Status>("connecting");
@@ -27,15 +30,16 @@ export default function CodeshareRoom({ room }: { room: string }) {
   const [langId, setLangId] = useState("python");
   const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [serverMissing, setServerMissing] = useState(false);
   const shared = useRef<{ doc: Y.Doc; provider: WebsocketProvider } | null>(null);
   const color = useRef(COLORS[0]);
   const nameShown = useRef(false);
 
   useEffect(() => {
     const doc = new Y.Doc();
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+    const endpoints = realtimeEndpoints();
     // Connect only after the listeners are attached, so the first status event is not missed.
-    const provider = new WebsocketProvider(url, room, doc, { connect: false });
+    const provider = new WebsocketProvider(endpoints.ws, room, doc, { connect: false });
     shared.current = { doc, provider };
     const text = doc.getText("code");
     const meta = doc.getMap<string>("meta");
@@ -47,6 +51,7 @@ export default function CodeshareRoom({ room }: { room: string }) {
     const binding = yCollab(text, provider.awareness, { undoManager: new Y.UndoManager(text) });
     provider.on("status", ({ status: s }: { status: Status }) => {
       setStatus(s);
+      if (s === "connected") setServerMissing(false);
       setCollab((current) => current ?? binding);
     });
     provider.on("sync", (synced: boolean) => {
@@ -80,9 +85,19 @@ export default function CodeshareRoom({ room }: { room: string }) {
     provider.awareness.on("change", onAwareness);
     onAwareness();
 
+    // Still not connected after a few seconds? Find out whether the realtime server exists at all
+    // (it doesn't when the app was started with plain `next dev`), so we can say how to fix it.
+    const probe = setTimeout(() => {
+      if (provider.wsconnected) return;
+      fetch(endpoints.stats)
+        .then((r) => setServerMissing(!r.ok))
+        .catch(() => setServerMissing(true));
+    }, 4000);
+
     provider.connect();
 
     return () => {
+      clearTimeout(probe);
       provider.awareness.off("change", onAwareness);
       meta.unobserve(onMeta);
       provider.destroy();
@@ -169,6 +184,30 @@ export default function CodeshareRoom({ room }: { room: string }) {
         </div>
       </div>
 
+      {serverMissing && status !== "connected" && (
+        <div className="mb-3 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {RELAY_URL ? (
+            <>
+              <p className="font-medium">Can&apos;t reach the realtime relay.</p>
+              <p className="mt-1">
+                Live sync uses the relay at <code className="font-mono">{RELAY_URL}</code>. On a free host it sleeps
+                when idle and takes up to a minute to wake: this page keeps retrying. If it never connects, check the
+                relay is deployed and that its <code className="font-mono">ALLOWED_ORIGINS</code> includes this site.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">Live sync isn&apos;t running on this server.</p>
+              <p className="mt-1">
+                This server serves the pages but not the realtime WebSocket. Locally, start Code Hub with{" "}
+                <code className="font-mono">npm run dev</code> instead of <code className="font-mono">next dev</code>.
+                On Vercel, deploy the relay in <code className="font-mono">relay/</code> (for example on Render) and
+                set <code className="font-mono">NEXT_PUBLIC_REALTIME_URL</code> to its URL, then redeploy.
+              </p>
+            </>
+          )}
+        </div>
+      )}
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[3fr_2fr]">
         {collab ? (
           <CodeEditor language={langId} collab={collab} className="h-[55vh] xl:h-auto" />

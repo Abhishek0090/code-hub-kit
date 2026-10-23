@@ -16,6 +16,15 @@ export interface ScriptMeta {
   /** Files left out on purpose (secrets), so the user knows to copy them by hand. */
   leftOut: string[];
   generatedAt: string;
+  /** Set for an update script: applies the project onto an existing copy instead of an empty folder. */
+  update?: UpdateOptions | null;
+}
+
+export interface UpdateOptions {
+  /** package.json / manifest names that count as this project, including earlier names. */
+  projectNames: string[];
+  /** Files earlier versions had and this one dropped. Deleted if present, even when no manifest recorded them. */
+  obsolete: string[];
 }
 
 export const MANIFEST_FILE = ".code-to-script.json";

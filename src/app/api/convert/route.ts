@@ -5,6 +5,9 @@ import Anthropic from "@anthropic-ai/sdk";
  * Needs ANTHROPIC_API_KEY. Nothing is stored.
  */
 const MAX_CODE = 100_000;
+
+/** Seconds. Long conversions stream for minutes; serverless hosts (Vercel) would cut them off at their default. */
+export const maxDuration = 300;
 const MODEL = "claude-opus-5-5";
 
 const SYSTEM = `You convert source code between programming languages and frameworks.

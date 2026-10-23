@@ -11,10 +11,11 @@ Run button. Rooms live only in server memory.
 | Room route | `src/app/(tools)/codeshare/[room]/page.tsx` | Validates the id, renders the room behind Suspense |
 | Browser-only loader | `src/components/CodeshareRoomClient.tsx` | `next/dynamic` with `ssr: false` |
 | Room UI | `src/components/CodeshareRoom.tsx` | Yjs document, WebSocket provider, editor binding, people, run panel |
-| Relay | `src/server/rooms.ts` | Keeps one Yjs document per room in memory and relays updates |
+| Relay | `relay/rooms.ts` | Keeps one Yjs document per room in memory and relays updates |
+| Standalone relay | `relay/server.ts` | Runs `rooms.ts` on its own (Render etc.) when the app is on Vercel |
 | Upgrade routing | `server.ts` | Sends `/ws/<room>` to the relay, other upgrades to Next.js |
 
-Room ids match `^[a-z0-9-]{3,40}$`, enforced on both sides (`src/lib/codeshare.ts` and `src/server/rooms.ts`).
+Room ids match `^[a-z0-9-]{3,40}$`, enforced on both sides (`src/lib/codeshare.ts` and `relay/rooms.ts`).
 New ids look like `k7f-2qpx`, built from an alphabet without look-alike characters (no `0/o`, `1/l/i`).
 
 ## Yjs in one paragraph
@@ -47,7 +48,7 @@ sequenceDiagram
   S->>A: update (broadcast)
 ```
 
-## The relay (`src/server/rooms.ts`)
+## The relay (`relay/rooms.ts`)
 
 It speaks the same wire protocol as `y-websocket`, so the browser uses the stock `WebsocketProvider`. Each message
 starts with a type: `0` = sync, `1` = awareness.
@@ -104,3 +105,20 @@ when both copies touch the same objects. The room can't do anything useful on th
 | Show who is typing where | Awareness already carries cursors; `y-codemirror.next` renders them |
 | Keep rooms alive longer when empty | `EMPTY_ROOM_TTL_MS` in `rooms.ts` (memory only; still no storage) |
 | Run on several server instances | Needs a shared relay (for example Redis pub/sub between processes); not built |
+
+## Where the browser connects
+
+`realtimeEndpoints()` in `src/lib/codeshare.ts` decides:
+
+| `NEXT_PUBLIC_REALTIME_URL` | WebSocket | Stats for the sidebar |
+| --- | --- | --- |
+| Unset | `ws(s)://<this site>/ws/<room>` (served by `server.ts`) | `/api/realtime` |
+| `https://relay.example.com` | `wss://relay.example.com/ws/<room>` | `https://relay.example.com/api/realtime` |
+
+The standalone relay (`relay/server.ts`) serves the same two paths plus `/health`. It sends
+`Access-Control-Allow-Origin: *` on the stats route (only counts), and when `ALLOWED_ORIGINS` is set it rejects
+WebSocket upgrades from other sites with 403. Patterns may use `*` for one host label, e.g. `https://*.vercel.app`.
+
+If the room hasn't connected after 4 seconds, it fetches the stats URL. A failure shows a notice: with a relay
+configured it explains sleeping free hosts and `ALLOWED_ORIGINS`; without one it explains `npm run dev` and the
+Vercel setup.

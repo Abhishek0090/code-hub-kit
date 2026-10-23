@@ -1,0 +1,14 @@
+# Render Blueprint for the Code Hub realtime relay (Live Codeshare).
+# In Render: New > Blueprint > pick this repository. Then set ALLOWED_ORIGINS to your Vercel URL.
+services:
+  - type: web
+    name: code-hub-relay
+    runtime: node
+    rootDir: relay
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        sync: false
