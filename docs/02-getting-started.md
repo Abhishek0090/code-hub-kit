@@ -38,6 +38,9 @@ needs one.
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | AI Code Convert (`/api/convert`) | The page shows a notice and the Convert button is disabled |
 | `PISTON_URL` | Run Code for server languages (`/api/run`) | Java, C, Go, etc. show how to set it up; JS, TS and Python still run |
+| `MONGODB_URI` | Upload to cloud, Uploaded Scripts (`/api/scripts`) | The upload panel and the Uploaded Scripts page explain how to set it up |
+| `MONGODB_DB` | Upload to cloud | Database name, defaults to `codehub` |
+| `CLOUD_STORAGE_MB` | Upload to cloud | Storage limit in MB, defaults to 512 (the Atlas free tier) |
 | `PORT` | `server.ts` | Defaults to 3000 |
 | `NEXT_PUBLIC_REALTIME_URL` | Live Codeshare | Rooms connect to this site's own `/ws` (works with `npm run dev` / `npm start`, not on Vercel) |
 

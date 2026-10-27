@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { formatBytes } from "@/lib/bytes";
 import { classify, type Classified, type ExcludeReason } from "@/lib/pack/filters";
 import { FORMATS, generateScripts, loadFiles } from "@/lib/pack/generate";
 import type { GeneratedScript, ScriptFormat, SourceProject } from "@/lib/pack/types";
 import { fromDrop, fromFolderInput, fromZip } from "@/lib/sources";
+import CloudUploadPanel from "./CloudUploadPanel";
 import PageHeader from "./PageHeader";
 
 const REASON_LABEL: Record<ExcludeReason, string> = {
@@ -16,12 +18,6 @@ const REASON_LABEL: Record<ExcludeReason, string> = {
 const ROW_LIMIT = 300;
 const LARGE_FILE = 1024 * 1024;
 const LARGE_SCRIPT = 1024 * 1024;
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function download(name: string, content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
@@ -139,10 +135,11 @@ export default function Packer() {
   );
 
   return (
-    <div className="w-full max-w-5xl px-4 py-6 sm:px-7">
+    <div className="w-full px-4 py-6 sm:px-7">
       <PageHeader title="Project to Script">
         Turn a project folder into one script. Paste it on another machine, run it, and get back exactly the same
-        files, checked with SHA-256. Everything happens in your browser: nothing is uploaded.
+        files, checked with SHA-256. Everything happens in your browser: nothing is uploaded unless you choose
+        Upload to cloud.
       </PageHeader>
 
       <div
@@ -292,7 +289,9 @@ export default function Packer() {
             </button>
           </section>
 
-          {results && <Results results={results} copied={copied} onCopy={copy} />}
+          {results && (
+            <Results results={results} copied={copied} onCopy={copy} project={name.trim() || project.name} />
+          )}
 
           <section className="card mt-8">
             <div className="flex flex-wrap items-center gap-2">
@@ -371,10 +370,12 @@ function Results({
   results,
   copied,
   onCopy,
+  project,
 }: {
   results: GeneratedScript[];
   copied: string | null;
   onCopy: (s: GeneratedScript) => void;
+  project: string;
 }) {
   const byFormat = (Object.keys(FORMATS) as ScriptFormat[])
     .map((f) => ({ format: f, scripts: results.filter((s) => s.format === f) }))
@@ -417,6 +418,7 @@ function Results({
           </div>
         );
       })}
+      <CloudUploadPanel scripts={results} project={project} />
     </section>
   );
 }

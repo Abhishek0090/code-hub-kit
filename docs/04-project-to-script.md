@@ -78,7 +78,10 @@ What every script does, in order:
 1. **Checks the payload hash before writing anything.** A paste cut off halfway fails here with "This script is
    damaged".
 2. **Refuses a folder that holds something else**, unless forced. A folder is fine if it is empty (ignoring the
-   script itself and OS junk) or if its manifest names the same project.
+   script itself and OS junk), if its manifest names the same project, or if it is an existing copy made without a
+   script (git clone, unzip): its `package.json` has the project's name, or it holds only the project's own top-level
+   files and folders plus tool folders like `node_modules` (`knownEntries` in `ScriptMeta`). A `package.json` with a
+   different name is always refused. On an existing copy, changed files are overwritten and other files are kept.
 3. **Unpacks.** The Node script parses tar itself, rejects absolute paths and `..`, sets file modes outside Windows,
    and restores modification times.
 4. **Verifies every file** against its SHA-256 from the upload.

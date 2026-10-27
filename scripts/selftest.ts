@@ -7,9 +7,9 @@
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { classify } from "../src/lib/pack/filters";
 import { generateScripts, loadFiles } from "../src/lib/pack/generate";
 import type { ScriptFormat } from "../src/lib/pack/types";
@@ -48,12 +48,33 @@ function makeFixture(dir: string) {
   mkdirSync(join(dir, "empty-dir"), { recursive: true });
 }
 
+/**
+ * On Windows, Git for Windows' bash found next to git.exe (PowerShell terminals rarely have bash on PATH, and a
+ * WSL bash would run in Linux with Windows paths). Elsewhere, bash on PATH.
+ */
+function findBash(): string | null {
+  if (process.platform === "win32") {
+    const gits = (spawnSync("where.exe", ["git"], { encoding: "utf8" }).stdout ?? "").split(/\r?\n/).filter(Boolean);
+    for (const git of gits) {
+      for (const up of ["..", "../..", "../../.."]) {
+        for (const rel of ["bin/bash.exe", "usr/bin/bash.exe"]) {
+          const p = resolve(dirname(git), up, rel);
+          if (existsSync(p)) return p;
+        }
+      }
+    }
+  }
+  return spawnSync("bash", ["-c", "exit 0"]).status === 0 ? "bash" : null;
+}
+
+const BASH = findBash();
+
 function run(format: ScriptFormat, script: string, cwd: string, extra: string[] = []) {
   const [cmd, args] =
     format === "node"
       ? ["node", [script, ...extra]]
       : format === "bash"
-        ? ["bash", [script, ...extra]]
+        ? [BASH ?? "bash", [script, ...extra]]
         : ["powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, ...extra]];
   return spawnSync(cmd, args as string[], { cwd, encoding: "utf8" });
 }
@@ -92,7 +113,9 @@ async function main() {
   }
 
   const hasPowershell = spawnSync("powershell", ["-NoProfile", "-Command", "exit 0"]).status === 0;
-  const formats: ScriptFormat[] = ["node", "bash", ...(hasPowershell ? (["powershell"] as const) : [])];
+  const formats: ScriptFormat[] = ["node", ...(BASH ? (["bash"] as const) : []), ...(hasPowershell ? (["powershell"] as const) : [])];
+  if (!BASH) console.log("SKIP  bash: not found (install Git for Windows, or run from Git Bash)");
+  if (!hasPowershell) console.log("SKIP  powershell: not found");
 
   for (const partBytes of [null, 60_000]) {
     const scripts = await generateScripts({ name: basename(source), files: packed, emptyDirs, formats, partBytes, leftOut });
@@ -124,7 +147,7 @@ async function main() {
 
     if (partBytes === null && !process.argv[2]) {
       const node = scripts.find((s) => s.format === "node")!;
-      const bash = scripts.find((s) => s.format === "bash")!;
+      const bash = scripts.find((s) => s.format === "bash");
 
       // A paste that was cut off must be refused before anything is written.
       const cutDir = join(root, "cut");
@@ -141,6 +164,30 @@ async function main() {
       writeFileSync(join(busy, node.fileName), node.content);
       check(run("node", join(busy, node.fileName), busy).status !== 0, "node: refuses a non-empty folder");
       check(run("node", join(busy, node.fileName), busy, ["--force"]).status === 0, "node: --force writes into it");
+
+      // An existing copy without a manifest (cloned or unzipped) is updated, not refused. A different project is.
+      for (const format of formats) {
+        const s = scripts.find((x) => x.format === format)!;
+        const cases: [string, Record<string, string>, boolean, string][] = [
+          ["same-pkg", { "package.json": '{"name":"fixture"}', "notes-of-mine.txt": "mine" }, true, "same package.json name"],
+          ["known-only", { "src/old.ts": "old", "node_modules/x/i.js": "x" }, true, "only the project's own folders"],
+          ["other-pkg", { "package.json": '{"name":"something-else"}' }, false, "different package.json name"],
+        ];
+        for (const [tag, files, shouldRun, label] of cases) {
+          const dir = join(root, `existing-${format}-${tag}`);
+          for (const [p, data] of Object.entries(files)) {
+            mkdirSync(join(dir, p, ".."), { recursive: true });
+            writeFileSync(join(dir, p), data);
+          }
+          writeFileSync(join(dir, s.fileName), s.content);
+          const r = run(format, join(dir, s.fileName), dir);
+          if (shouldRun && r.status) console.log(r.stdout, r.stderr);
+          check(
+            shouldRun ? r.status === 0 && !sameTree(expected, dir).length : r.status !== 0,
+            `${format}: existing folder with ${label} ${shouldRun ? "is updated" : "is refused"}`,
+          );
+        }
+      }
 
       // Update: a file from an older version is reported, and removed with --prune.
       const upd = join(root, "out-node-single");
@@ -188,12 +235,14 @@ async function main() {
       check(run("node", join(other, updater.fileName), other).status !== 0, "update script: refuses a different project");
 
       // CRLF: a bash script saved by a Windows editor still runs.
-      const crlfDir = join(root, "crlf");
-      mkdirSync(crlfDir);
-      writeFileSync(join(crlfDir, "x.sh"), bash.content.replace(/\n/g, "\r\n"));
-      const rc = run("bash", join(crlfDir, "x.sh"), crlfDir);
-      if (rc.status) console.log(rc.stdout, rc.stderr);
-      check(rc.status === 0 && !sameTree(expected, crlfDir).length, "bash: runs with CRLF line endings");
+      if (bash) {
+        const crlfDir = join(root, "crlf");
+        mkdirSync(crlfDir);
+        writeFileSync(join(crlfDir, "x.sh"), bash.content.replace(/\n/g, "\r\n"));
+        const rc = run("bash", join(crlfDir, "x.sh"), crlfDir);
+        if (rc.status) console.log(rc.stdout, rc.stderr);
+        check(rc.status === 0 && !sameTree(expected, crlfDir).length, "bash: runs with CRLF line endings");
+      }
 
       const sizes = scripts.map((s) => `${s.fileName} ${(s.content.length / 1024).toFixed(0)} KB`).join(", ");
       console.log(`\nSizes: ${sizes}`);

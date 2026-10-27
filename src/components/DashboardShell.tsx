@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { CLOUD_CHANGED } from "@/lib/cloud/client";
 import { realtimeEndpoints } from "@/lib/codeshare";
 
 interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
-  badge?: "live" | "ai";
+  badge?: "live" | "ai" | "cloud";
 }
 
 const icon = (path: ReactNode) => (
@@ -21,7 +22,15 @@ const icon = (path: ReactNode) => (
 export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Transfer",
-    items: [{ href: "/", label: "Project to Script", icon: icon(<path d="M4 7h16M4 12h10M4 17h7M17 14l3 3-3 3" />) }],
+    items: [
+      { href: "/", label: "Project to Script", icon: icon(<path d="M4 7h16M4 12h10M4 17h7M17 14l3 3-3 3" />) },
+      {
+        href: "/scripts",
+        label: "Uploaded Scripts",
+        badge: "cloud",
+        icon: icon(<path d="M7 18h10.5a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.5 10.03 4 4 0 0 0 7 18zM12 15v-5M9.5 12.5 12 10l2.5 2.5" />),
+      },
+    ],
   },
   {
     group: "Collaborate",
@@ -76,9 +85,32 @@ function useLiveRooms(): number | null {
   return rooms;
 }
 
+/** How many uploads are waiting in the cloud. Null when cloud upload is off or unreachable. */
+function useCloudCount(): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const load = () =>
+      fetch("/api/scripts", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { uploads: unknown[] } | null) => !stop && setCount(d ? d.uploads.length : null))
+        .catch(() => !stop && setCount(null));
+    load();
+    const t = setInterval(load, 60_000);
+    window.addEventListener(CLOUD_CHANGED, load);
+    return () => {
+      stop = true;
+      clearInterval(t);
+      window.removeEventListener(CLOUD_CHANGED, load);
+    };
+  }, []);
+  return count;
+}
+
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const liveRooms = useLiveRooms();
+  const cloudCount = useCloudCount();
   return (
     <nav className="flex h-full flex-col px-3.5 py-4">
       <Link href="/" onClick={onNavigate} className="flex items-center gap-2.5 px-2 pb-5">
@@ -114,6 +146,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     {liveRooms} live
                   </span>
                 )}
+                {item.badge === "cloud" && cloudCount !== null && cloudCount > 0 && (
+                  <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700 tabular-nums dark:bg-blue-950 dark:text-blue-300">
+                    {cloudCount}
+                  </span>
+                )}
                 {item.badge === "ai" && (
                   <span className="ml-auto rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700 dark:bg-violet-950 dark:text-violet-300">
                     AI
@@ -131,7 +168,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           />
           {liveRooms === null ? "Realtime server offline" : "Realtime server connected"}
         </p>
-        <p className="mt-1">Nothing is stored. Rooms vanish when everyone leaves.</p>
+        <p className="mt-1">Rooms are never stored and vanish when everyone leaves.</p>
       </div>
     </nav>
   );

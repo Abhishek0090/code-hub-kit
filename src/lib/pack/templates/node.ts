@@ -87,13 +87,27 @@ if (UPDATE && !flags.has("--force")) {
     fail('This folder holds a different project ("' + previous.name + '"). Use an empty folder, or pass --force.');
   }
   if (!previous && existsSync(target)) {
-    const others = readdirSync(target).filter((n) => n !== self && !IGNORABLE.has(n) && !n.startsWith(META.slug + "-"));
-    if (others.length) {
+    // No manifest: an existing copy from git or a zip is fine, as long as it is this project.
+    let pkgName = null;
+    try {
+      pkgName = JSON.parse(readFileSync(join(target, "package.json"), "utf8")).name ?? null;
+    } catch {}
+    if (META.packageName && pkgName && pkgName !== META.packageName) {
+      fail('This folder holds a different project ("' + pkgName + '"). Use an empty folder, or pass --force.');
+    }
+    const allowed = new Set(META.knownEntries);
+    const present = readdirSync(target).filter((n) => n !== self && !IGNORABLE.has(n) && !n.startsWith(META.slug + "-"));
+    const others = present.filter((n) => !allowed.has(n));
+    const sameCopy = META.packageName !== null && pkgName === META.packageName;
+    if (others.length && !sameCopy) {
       fail(
-        "The folder " + target + " is not empty (" + others.slice(0, 3).join(", ") + (others.length > 3 ? ", ..." : "") + ").\\n" +
-          "Run this in an empty folder, pass a folder: node " + self + ' "path/to/new-folder"\\n' +
-          "or, to update an existing copy of " + META.name + ", pass --force.",
+        "The folder " + target + " has files that are not part of " + META.name + " (" + others.slice(0, 3).join(", ") + (others.length > 3 ? ", ..." : "") + ").\\n" +
+          "Run this in an empty folder: node " + self + ' "path/to/new-folder"\\n' +
+          "or write into this folder anyway: node " + self + " --force",
       );
+    }
+    if (present.length) {
+      console.log("Found an existing copy of " + META.name + ". Changed files are overwritten; your other files are kept.");
     }
   }
 }

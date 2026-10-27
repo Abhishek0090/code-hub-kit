@@ -16,6 +16,13 @@ export interface ScriptMeta {
   /** Files left out on purpose (secrets), so the user knows to copy them by hand. */
   leftOut: string[];
   generatedAt: string;
+  /**
+   * Top-level names an existing copy of this project may hold: its own files and folders, files left out on purpose,
+   * and tool folders like node_modules. A folder holding only these is an existing copy, not "something else".
+   */
+  knownEntries: string[];
+  /** "name" from the project's package.json. A folder whose package.json has another name is a different project. */
+  packageName: string | null;
   /** Set for an update script: applies the project onto an existing copy instead of an empty folder. */
   update?: UpdateOptions | null;
 }

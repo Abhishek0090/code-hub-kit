@@ -8,6 +8,7 @@ export async function GET() {
     {
       piston: Boolean(process.env.PISTON_URL),
       ai: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+      cloud: Boolean(process.env.MONGODB_URI),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

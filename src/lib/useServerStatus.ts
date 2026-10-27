@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export interface ServerStatus {
   piston: boolean;
   ai: boolean;
+  cloud: boolean;
 }
 
 let cached: Promise<ServerStatus> | null = null;
@@ -15,7 +16,7 @@ export function useServerStatus(): ServerStatus | null {
   useEffect(() => {
     cached ??= fetch("/api/status")
       .then((r) => r.json() as Promise<ServerStatus>)
-      .catch(() => ({ piston: false, ai: false }));
+      .catch(() => ({ piston: false, ai: false, cloud: false }));
     let live = true;
     cached.then((s) => live && setStatus(s));
     return () => {

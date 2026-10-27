@@ -19,9 +19,14 @@ New to the codebase? Read 1 and 2, then the page for the tool you're working on.
 | 8 | [Image Convert](08-image-convert.md) | PNG to SVG tracing, SVG to PNG export |
 | 9 | [Sharing the project](09-sharing.md) | `npm run share`: the copy-paste setup scripts for this repo |
 | 10 | [Testing](10-testing.md) | Lint, typecheck, self-test, and the manual browser checklist |
+| 11 | [Cloud scripts](11-cloud-scripts.md) | Upload to cloud and the Uploaded Scripts page: MongoDB storage, limits, cleanup |
 
 ## The one rule
 
-Code Hub stores nothing. Uploaded folders, images and converter input are processed in the browser. Codeshare rooms
-exist only in server memory and are deleted about a minute after the last person leaves. AI conversion sends code to
-the Anthropic API for that one request. There is no database, and new features should keep it that way.
+Code Hub stores nothing by default. Uploaded folders, images and converter input are processed in the browser.
+Codeshare rooms exist only in server memory and are deleted about a minute after the last person leaves. AI conversion
+sends code to the Anthropic API for that one request.
+
+The one exception is Upload to cloud, which the user chooses per upload and which only works when `MONGODB_URI` is
+set. It keeps generated scripts until they are downloaded (then deletes them) or until they expire. New features
+should not add other storage.

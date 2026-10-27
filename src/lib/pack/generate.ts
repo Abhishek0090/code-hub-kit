@@ -1,5 +1,5 @@
 import { estimateCompressed, gzipAsync, sha256, toBase64, wrapLines } from "./encode";
-import { guessMode } from "./filters";
+import { guessMode, SKIP_DIRS } from "./filters";
 import { createTar } from "./tar";
 import { bashScript } from "./templates/bash";
 import type { ScriptMeta, UpdateOptions } from "./templates/meta";
@@ -117,6 +117,17 @@ export async function generateScripts(input: GenerateInput): Promise<GeneratedSc
   const parts = groups.length;
   const nextSteps = input.nextSteps ?? guessNextSteps(input.files, input.leftOut);
   const generatedAt = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  const knownEntries = [
+    ...new Set([
+      ...[...input.files.map((f) => f.path), ...input.emptyDirs, ...input.leftOut].map((p) => p.split("/")[0]),
+      ...SKIP_DIRS,
+    ]),
+  ].sort();
+  let packageName: string | null = null;
+  try {
+    const pkg = input.files.find((f) => f.path === "package.json");
+    if (pkg) packageName = JSON.parse(new TextDecoder().decode(pkg.data)).name ?? null;
+  } catch {}
   const out: GeneratedScript[] = [];
 
   for (let i = 0; i < parts; i++) {
@@ -133,6 +144,8 @@ export async function generateScripts(input: GenerateInput): Promise<GeneratedSc
       nextSteps,
       leftOut: input.leftOut,
       generatedAt,
+      knownEntries,
+      packageName,
       update: input.update ?? null,
     };
     const payload = wrapLines(toBase64(gz), LINE_WIDTH);

@@ -92,7 +92,7 @@ scripts/
 
 | Decision | Why |
 | --- | --- |
-| No storage anywhere | Product requirement. Rooms are memory-only; files never leave the browser. |
+| No storage, except opt-in cloud upload | Product requirement. Rooms are memory-only; files never leave the browser unless the user picks Upload to cloud, which keeps scripts in MongoDB only until a verified download or expiry (see 11-cloud-scripts.md). |
 | Custom server instead of `next start` | Live Codeshare needs WebSockets on the same origin and port. |
 | Yjs (CRDT) for codeshare | Two people typing at once merge cleanly; cursors come free through "awareness". |
 | Own room relay instead of `@y/websocket-server` | Its in-memory mode keeps documents after everyone leaves. Ours deletes them. |
