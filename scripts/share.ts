@@ -86,10 +86,13 @@ Then open http://localhost:3000. Needs Node.js 20.9 or newer to run the app (\`n
 \`npm run build\` then \`npm start\` on a Node host, or deploy to Vercel plus the small relay in \`relay/\` (Vercel
 can't run the WebSocket itself; see \`docs/02-getting-started.md\`).
 
+Every page asks you to sign in first. The username and password are set in \`src/lib/auth.ts\`.
+
 ### Optional keys
 
 Copy \`.env.example\` to \`.env.local\`, fill in what you need, and restart:
 
+- \`AUTH_SECRET\`: any long random string. It signs the login cookie. Set it on any server other people can reach.
 - \`ANTHROPIC_API_KEY\`: turns on AI Code Convert.
 - \`PISTON_URL\`: your own Piston server (https://github.com/engineer-man/piston) for Java, C, C++, Go, Rust and
   more. JavaScript, TypeScript and Python run in the browser without it.

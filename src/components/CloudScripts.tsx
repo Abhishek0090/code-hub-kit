@@ -71,7 +71,7 @@ export default function CloudScripts() {
   const [search, setSearch] = useState("");
   const [highlight, setHighlight] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const apply = (l: { uploads: CloudUpload[]; storage: CloudStorage }) => {
     setUploads(l.uploads);
@@ -89,7 +89,6 @@ export default function CloudScripts() {
           if (!live) return;
           setUploads(l.uploads);
           setStorage(l.storage);
-          setNow(Date.now());
           setError(null);
         })
         .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
@@ -116,7 +115,6 @@ export default function CloudScripts() {
     try {
       const upload = await findUpload(code);
       setUploads((list) => [upload, ...(list ?? []).filter((u) => u.code !== code)]);
-      setNow(Date.now());
       setHighlight(code);
       setSearch("");
       setError(null);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { logout } from "@/app/login/actions";
 import { CLOUD_CHANGED } from "@/lib/cloud/client";
 import { realtimeEndpoints } from "@/lib/codeshare";
 
@@ -169,6 +170,15 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {liveRooms === null ? "Realtime server offline" : "Realtime server connected"}
         </p>
         <p className="mt-1">Rooms are never stored and vanish when everyone leaves.</p>
+        <form action={logout} className="mt-3">
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 -mx-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
+          >
+            {icon(<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" />)}
+            Sign out
+          </button>
+        </form>
       </div>
     </nav>
   );
