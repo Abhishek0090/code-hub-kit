@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = { title: "Sign in - Code Hub" };
 
-export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+async function LoginFormWithNext({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
   const { next } = await searchParams;
+  return <LoginForm next={typeof next === "string" ? next : undefined} />;
+}
 
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <main className="relative flex min-h-dvh flex-1 items-center justify-center overflow-hidden bg-zinc-50 px-4 py-10 dark:bg-[#0b0b0d]">
       {/* Soft glow behind the card */}
@@ -28,7 +32,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white/80 p-6 shadow-xl shadow-black/5 backdrop-blur sm:p-7 dark:border-zinc-800 dark:bg-[#111113]/80 dark:shadow-black/40">
-          <LoginForm next={typeof next === "string" ? next : undefined} />
+          <Suspense fallback={<LoginForm />}>
+            <LoginFormWithNext searchParams={searchParams} />
+          </Suspense>
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-500">Code Hub - Tools for developers</p>
