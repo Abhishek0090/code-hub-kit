@@ -1,6 +1,6 @@
 {
  "name": "code-hub",
- "generatedAt": "2026-10-27 18:59 UTC",
+ "generatedAt": "2026-10-28 05:51 UTC",
  "parts": 1,
  "partsDone": [
   1
@@ -44,6 +44,7 @@
   "src/app/(tools)/page.tsx",
   "src/app/(tools)/run/page.tsx",
   "src/app/(tools)/scripts/page.tsx",
+  "src/app/(tools)/upload/page.tsx",
   "src/app/api/convert/route.ts",
   "src/app/api/run/route.ts",
   "src/app/api/scripts/[code]/chunks/[file]/[seq]/route.ts",
@@ -62,6 +63,7 @@
   "src/components/CodeshareRoom.tsx",
   "src/components/CodeshareRoomClient.tsx",
   "src/components/DashboardShell.tsx",
+  "src/components/FileUpload.tsx",
   "src/components/LanguageSelect.tsx",
   "src/components/Packer.tsx",
   "src/components/PageHeader.tsx",

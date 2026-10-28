@@ -26,8 +26,13 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { href: "/", label: "Project to Script", icon: icon(<path d="M4 7h16M4 12h10M4 17h7M17 14l3 3-3 3" />) },
       {
+        href: "/upload",
+        label: "Upload Files",
+        icon: icon(<path d="M12 16V4M7 9l5-5 5 5M5 20h14" />),
+      },
+      {
         href: "/scripts",
-        label: "Uploaded Scripts",
+        label: "Uploaded Files",
         badge: "cloud",
         icon: icon(<path d="M7 18h10.5a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.5 10.03 4 4 0 0 0 7 18zM12 15v-5M9.5 12.5 12 10l2.5 2.5" />),
       },

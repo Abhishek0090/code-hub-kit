@@ -23,7 +23,7 @@ function Heading() {
       <div>
         <h3 className="font-semibold">Upload to cloud</h3>
         <p className="text-xs text-zinc-500">
-          Pick it up on another device under Uploaded Scripts. Deleted after download, or after {KEEP_HOURS} hours.
+          Pick it up on another device under Uploaded Files. Deleted after download, or after {KEEP_HOURS} hours.
         </p>
       </div>
     </div>
@@ -88,7 +88,7 @@ export default function CloudUploadPanel({ scripts, project }: { scripts: Genera
           <code className="font-mono">.env.local</code> and restart <code className="font-mono">npm run dev</code>. Then
           you can upload here and download on another device from{" "}
           <Link href="/scripts" className="underline">
-            Uploaded Scripts
+            Uploaded Files
           </Link>
           .
         </p>
@@ -152,7 +152,7 @@ export default function CloudUploadPanel({ scripts, project }: { scripts: Genera
               </button>
               {u === last && (
                 <Link href="/scripts" className="btn-secondary py-1">
-                  Open Uploaded Scripts
+                  Open Uploaded Files
                 </Link>
               )}
             </li>

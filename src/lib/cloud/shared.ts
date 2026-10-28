@@ -24,10 +24,13 @@ export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
 export const FILE_NAME_RE = /^[A-Za-z0-9._-]{1,200}$/;
 export const SCRIPT_FORMATS: ScriptFormat[] = ["node", "bash", "powershell"];
+/** "file" is a plain file from Upload Files, stored as-is. */
+export type CloudFormat = ScriptFormat | "file";
+export const CLOUD_FORMATS: CloudFormat[] = [...SCRIPT_FORMATS, "file"];
 
 export interface CloudFile {
   fileName: string;
-  format: ScriptFormat;
+  format: CloudFormat;
   part: number;
   parts: number;
   /** Project files inside this script. */
@@ -68,6 +71,11 @@ export const chunkCount =(size: number) => Math.max(1, Math.ceil(size / CHUNK_BY
 
 /** Bytes chunk `seq` of a file must hold. */
 export const chunkLength = (size: number, seq: number) => Math.max(0, Math.min(CHUNK_BYTES, size - seq * CHUNK_BYTES));
+
+/** Turns any file name into one FILE_NAME_RE accepts: "my report (1).pdf" becomes "my_report_1_.pdf". */
+export function safeFileName(name: string): string {
+  return name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-200) || "file";
+}
 
 export function normalizeCode(input: string): string {
   return input.toUpperCase().replace(/[^A-Z0-9]/g, "");

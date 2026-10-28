@@ -3,10 +3,10 @@ import { connection } from "next/server";
 import { collections, noStore, storage, toCloudUpload, withCloud } from "@/lib/cloud/db";
 import {
   chunkCount,
+  CLOUD_FORMATS,
   CODE_ALPHABET,
   FILE_NAME_RE,
   PENDING_MINUTES,
-  SCRIPT_FORMATS,
   type CloudFile,
   type CloudList,
 } from "@/lib/cloud/shared";
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     if (
       typeof f.fileName !== "string" ||
       !FILE_NAME_RE.test(f.fileName) ||
-      !SCRIPT_FORMATS.includes(f.format!) ||
+      !CLOUD_FORMATS.includes(f.format!) ||
       !isInt(f.part, 1) ||
       !isInt(f.parts, 1) ||
       !isInt(f.fileCount, 0) ||

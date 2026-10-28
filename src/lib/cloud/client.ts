@@ -2,7 +2,7 @@
 
 import { sha256 } from "@/lib/pack/encode";
 import type { GeneratedScript } from "@/lib/pack/types";
-import { CHUNK_BYTES, type CloudFile, type CloudList, type CloudUpload } from "./shared";
+import { CHUNK_BYTES, safeFileName, type CloudFile, type CloudList, type CloudUpload } from "./shared";
 
 /** Fired on window after an upload, download or delete, so the sidebar count refreshes. */
 export const CLOUD_CHANGED = "codehub:cloud-changed";
@@ -25,25 +25,41 @@ export async function deleteUpload(code: string): Promise<void> {
   changed();
 }
 
+type Progress = (sent: number, total: number) => void;
+type Entry = Omit<CloudFile, "size" | "sha256" | "chunks"> & { bytes: Uint8Array };
+
 /** Uploads generated scripts in chunks and returns the finished upload. Cleans up if anything fails. */
-export async function uploadScripts(
-  name: string,
-  project: string,
-  scripts: GeneratedScript[],
-  onProgress: (sent: number, total: number) => void,
-): Promise<CloudUpload> {
+export function uploadScripts(name: string, project: string, scripts: GeneratedScript[], onProgress: Progress) {
   const encoder = new TextEncoder();
-  const bytes = scripts.map((s) => encoder.encode(s.content));
+  const entries = scripts.map((s) => ({
+    fileName: s.fileName,
+    format: s.format,
+    part: s.part,
+    parts: s.parts,
+    fileCount: s.fileCount,
+    bytes: encoder.encode(s.content),
+  }));
+  return upload(name, project, entries, onProgress);
+}
+
+/** Uploads plain files from Upload Files. Names are made URL-safe and unique ("a.txt", "a-2.txt"). */
+export async function uploadFiles(name: string, files: File[], onProgress: Progress) {
+  const used = new Set<string>();
+  const entries: Entry[] = [];
+  for (const file of files) {
+    const base = safeFileName(file.name);
+    let fileName = base;
+    for (let n = 2; used.has(fileName); n++) fileName = base.replace(/(\.[^.]*)?$/, `-${n}$1`);
+    used.add(fileName);
+    entries.push({ fileName, format: "file", part: 1, parts: 1, fileCount: 1, bytes: new Uint8Array(await file.arrayBuffer()) });
+  }
+  return upload(name, name, entries, onProgress);
+}
+
+async function upload(name: string, project: string, entries: Entry[], onProgress: Progress): Promise<CloudUpload> {
+  const bytes = entries.map((e) => e.bytes);
   const declared = await Promise.all(
-    scripts.map(async (s, i) => ({
-      fileName: s.fileName,
-      format: s.format,
-      part: s.part,
-      parts: s.parts,
-      fileCount: s.fileCount,
-      size: bytes[i].length,
-      sha256: await sha256(bytes[i]),
-    })),
+    entries.map(async ({ bytes: b, ...meta }) => ({ ...meta, size: b.length, sha256: await sha256(b) })),
   );
   const total = bytes.reduce((n, b) => n + b.length, 0);
   const { code, files } = await api<{ code: string; files: CloudFile[] }>("/api/scripts", {

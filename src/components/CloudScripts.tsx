@@ -5,17 +5,17 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { formatBytes } from "@/lib/bytes";
 import { deleteUpload, downloadFile, findUpload, listUploads, saveBlob } from "@/lib/cloud/client";
-import { CODE_RE, KEEP_HOURS, normalizeCode, type CloudStorage, type CloudUpload } from "@/lib/cloud/shared";
+import { CODE_RE, KEEP_HOURS, normalizeCode, type CloudFormat, type CloudStorage, type CloudUpload } from "@/lib/cloud/shared";
 import { FORMATS, slugify } from "@/lib/pack/generate";
-import type { ScriptFormat } from "@/lib/pack/types";
 import { useServerStatus } from "@/lib/useServerStatus";
 import PageHeader from "./PageHeader";
 
-const FORMAT_SHORT: Record<ScriptFormat, string> = { node: "Node.js", bash: "Bash", powershell: "PowerShell" };
-const FORMAT_CHIP: Record<ScriptFormat, string> = {
+const FORMAT_SHORT: Record<CloudFormat, string> = { node: "Node.js", bash: "Bash", powershell: "PowerShell", file: "File" };
+const FORMAT_CHIP: Record<CloudFormat, string> = {
   node: "bg-green-50 text-green-700 dark:bg-green-950/60 dark:text-green-300",
   bash: "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
   powershell: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+  file: "bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
 };
 
 function ago(iso: string, now: number): string {
@@ -30,6 +30,9 @@ function left(iso: string, now: number): string {
   const min = Math.max(0, Math.round((Date.parse(iso) - now) / 60_000));
   return min < 60 ? `${min} min` : `${Math.round(min / 60)} h`;
 }
+
+/** Scripts save as text; uploaded files as raw bytes so the browser keeps their extension. */
+const mime = (format: CloudFormat) => (format === "file" ? "application/octet-stream" : "text/plain");
 
 const svg = (path: ReactNode, className = "size-4") => (
   <svg viewBox="0 0 24 24" className={`${className} shrink-0`} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -81,7 +84,6 @@ export default function CloudScripts() {
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
 
   useEffect(() => {
-    setNow(Date.now());
     if (!status?.cloud) return;
     let live = true;
     const load = () =>
@@ -116,7 +118,6 @@ export default function CloudScripts() {
     try {
       const upload = await findUpload(code);
       setUploads((list) => [upload, ...(list ?? []).filter((u) => u.code !== code)]);
-      setNow(Date.now());
       setHighlight(code);
       setSearch("");
       setError(null);
@@ -150,10 +151,10 @@ export default function CloudScripts() {
       }
       if (upload.files.length === 1) {
         const [f] = upload.files;
-        saveBlob(f.fileName, new Blob([files[f.fileName] as Uint8Array<ArrayBuffer>], { type: "text/plain" }));
+        saveBlob(f.fileName, new Blob([files[f.fileName] as Uint8Array<ArrayBuffer>], { type: mime(f.format) }));
       } else {
         const zip = zipSync(files, { level: 6 });
-        saveBlob(`${slugify(upload.name)}-scripts.zip`, new Blob([zip as Uint8Array<ArrayBuffer>], { type: "application/zip" }));
+        saveBlob(`${slugify(upload.name)}-${upload.files[0].format === "file" ? "files" : "scripts"}.zip`, new Blob([zip as Uint8Array<ArrayBuffer>], { type: "application/zip" }));
       }
       if (deleteAfter) {
         await deleteUpload(upload.code);
@@ -181,7 +182,7 @@ export default function CloudScripts() {
         done += n;
         setBusy({ code: upload.code, done, total: f.size });
       });
-      saveBlob(f.fileName, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "text/plain" }));
+      saveBlob(f.fileName, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime(f.format) }));
     } catch (e) {
       setRowError({ code: upload.code, message: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -203,8 +204,8 @@ export default function CloudScripts() {
   }
 
   const header = (
-    <PageHeader title="Uploaded Scripts">
-      Scripts uploaded from Project to Script, waiting to be picked up on another device. Each download is checked with
+    <PageHeader title="Uploaded Files">
+      Files from Upload Files and scripts from Project to Script, waiting to be picked up on another device. Each download is checked with
       SHA-256, then the upload is deleted so the database stays clean. Anything not downloaded is deleted after{" "}
       {KEEP_HOURS} hours.
     </PageHeader>
@@ -322,10 +323,15 @@ export default function CloudScripts() {
             {svg(CLOUD, "size-6")}
           </span>
           <p className="mt-3 font-medium">Nothing uploaded</p>
-          <p className="mt-1 text-sm text-zinc-500">Generate scripts on Project to Script, then choose Upload to cloud.</p>
-          <Link href="/" className="btn-primary mt-4">
-            Go to Project to Script
-          </Link>
+          <p className="mt-1 text-sm text-zinc-500">Upload files, or generate scripts on Project to Script and choose Upload to cloud.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link href="/upload" className="btn-primary">
+              Upload files
+            </Link>
+            <Link href="/" className="btn-secondary">
+              Go to Project to Script
+            </Link>
+          </div>
         </div>
       )}
 
@@ -337,6 +343,7 @@ export default function CloudScripts() {
         {shown?.map((u) => {
           const formats = [...new Set(u.files.map((f) => f.format))];
           const parts = u.files[0]?.parts ?? 1;
+          const plainFiles = u.files[0]?.format === "file";
           const projectFiles = u.files.filter((f) => f.format === u.files[0].format).reduce((n, f) => n + f.fileCount, 0);
           const isBusy = busy?.code === u.code;
           const expiringSoon = Date.parse(u.expiresAt) - now < 3 * 3_600_000;
@@ -373,13 +380,17 @@ export default function CloudScripts() {
                     )}
                     <div>
                       <dd className="inline text-zinc-700 dark:text-zinc-300">{u.files.length}</dd>{" "}
-                      <dt className="inline">script file{u.files.length > 1 ? "s" : ""}</dt>
+                      <dt className="inline">
+                        {plainFiles ? "" : "script "}file{u.files.length > 1 ? "s" : ""}
+                      </dt>
                       {parts > 1 && <> ({parts} parts each)</>}
                     </div>
-                    <div>
-                      <dd className="inline text-zinc-700 dark:text-zinc-300">{projectFiles.toLocaleString()}</dd>{" "}
-                      <dt className="inline">project files</dt>
-                    </div>
+                    {!plainFiles && (
+                      <div>
+                        <dd className="inline text-zinc-700 dark:text-zinc-300">{projectFiles.toLocaleString()}</dd>{" "}
+                        <dt className="inline">project files</dt>
+                      </div>
+                    )}
                     <div>
                       <dd className="inline text-zinc-700 dark:text-zinc-300 tabular-nums">{formatBytes(u.size)}</dd>
                     </div>
@@ -458,7 +469,7 @@ export default function CloudScripts() {
                       {u.files.map((f, i) => (
                         <tr key={f.fileName}>
                           <td className="py-2 pr-4 font-mono text-xs">{f.fileName}</td>
-                          <td className="py-2 pr-4" title={FORMATS[f.format].label}>
+                          <td className="py-2 pr-4" title={f.format === "file" ? "Uploaded file" : FORMATS[f.format].label}>
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${FORMAT_CHIP[f.format]}`}>
                               {FORMAT_SHORT[f.format]}
                             </span>
