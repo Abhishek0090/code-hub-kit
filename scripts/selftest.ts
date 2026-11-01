@@ -157,23 +157,15 @@ async function main() {
       const r = run("node", join(cutDir, "x.mjs"), cutDir);
       check(r.status !== 0 && /damaged/.test(r.stderr) && readdirSync(cutDir).length === 1, "node: cut-off script refused, nothing written");
 
-      // Refuses a folder holding something else, unless --force.
-      const busy = join(root, "busy");
-      mkdirSync(busy);
-      writeFileSync(join(busy, "other.txt"), "x");
-      writeFileSync(join(busy, node.fileName), node.content);
-      check(run("node", join(busy, node.fileName), busy).status !== 0, "node: refuses a non-empty folder");
-      check(run("node", join(busy, node.fileName), busy, ["--force"]).status === 0, "node: --force writes into it");
-
-      // An existing copy without a manifest (cloned or unzipped) is updated, not refused. A different project is.
+      // A non-empty folder is written over, never refused: project files replaced, other files kept.
       for (const format of formats) {
         const s = scripts.find((x) => x.format === format)!;
-        const cases: [string, Record<string, string>, boolean, string][] = [
-          ["same-pkg", { "package.json": '{"name":"fixture"}', "notes-of-mine.txt": "mine" }, true, "same package.json name"],
-          ["known-only", { "src/old.ts": "old", "node_modules/x/i.js": "x" }, true, "only the project's own folders"],
-          ["other-pkg", { "package.json": '{"name":"something-else"}' }, false, "different package.json name"],
+        const cases: [string, Record<string, string>, string][] = [
+          ["same-pkg", { "package.json": '{"name":"fixture"}', "src/app/page.tsx": "old" }, "an older copy"],
+          ["other-pkg", { "package.json": '{"name":"something-else"}', "notes-of-mine.txt": "mine" }, "a different project"],
+          ["unrelated", { "other.txt": "x", "docs/readme.md": "y" }, "unrelated files"],
         ];
-        for (const [tag, files, shouldRun, label] of cases) {
+        for (const [tag, files, label] of cases) {
           const dir = join(root, `existing-${format}-${tag}`);
           for (const [p, data] of Object.entries(files)) {
             mkdirSync(join(dir, p, ".."), { recursive: true });
@@ -181,10 +173,11 @@ async function main() {
           }
           writeFileSync(join(dir, s.fileName), s.content);
           const r = run(format, join(dir, s.fileName), dir);
-          if (shouldRun && r.status) console.log(r.stdout, r.stderr);
+          if (r.status) console.log(r.stdout, r.stderr);
+          const kept = Object.keys(files).filter((p) => !expected.has(p));
           check(
-            shouldRun ? r.status === 0 && !sameTree(expected, dir).length : r.status !== 0,
-            `${format}: existing folder with ${label} ${shouldRun ? "is updated" : "is refused"}`,
+            r.status === 0 && !sameTree(expected, dir).length && kept.every((p) => readFileSync(join(dir, p), "utf8") === files[p]),
+            `${format}: folder with ${label} is written over, other files kept`,
           );
         }
       }

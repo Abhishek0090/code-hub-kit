@@ -77,11 +77,11 @@ What every script does, in order:
 
 1. **Checks the payload hash before writing anything.** A paste cut off halfway fails here with "This script is
    damaged".
-2. **Refuses a folder that holds something else**, unless forced. A folder is fine if it is empty (ignoring the
-   script itself and OS junk), if its manifest names the same project, or if it is an existing copy made without a
-   script (git clone, unzip): its `package.json` has the project's name, or it holds only the project's own top-level
-   files and folders plus tool folders like `node_modules` (`knownEntries` in `ScriptMeta`). A `package.json` with a
-   different name is always refused. On an existing copy, changed files are overwritten and other files are kept.
+2. **Never refuses the folder.** An empty folder gets the whole project. A non-empty folder has the project's files
+   written over it: files that differ are overwritten, files that aren't part of the project are kept, and the script
+   prints that the folder wasn't empty. `--dry-run` (Node) previews the changes. `--force` / `FORCE=1` / `-Force` are
+   still accepted from older instructions and do nothing. Update scripts (`code-hub-update.mjs`) still refuse a
+   folder that isn't this project.
 3. **Unpacks.** The Node script parses tar itself, rejects absolute paths and `..`, sets file modes outside Windows,
    and restores modification times.
 4. **Verifies every file** against its SHA-256 from the upload.

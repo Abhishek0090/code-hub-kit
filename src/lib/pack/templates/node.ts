@@ -8,8 +8,8 @@ import { IGNORABLE_ENTRIES, MANIFEST_FILE, type ScriptMeta } from "./meta";
 const SETUP_USAGE = `// Run:   node <this file> [target-folder] [--dry-run] [--force] [--prune]
 //   target-folder  where to write the project (default: current folder)
 //   --dry-run      show what would change, write nothing
-//   --force        write into a folder that holds something else
-//   --prune        when updating, delete files that are no longer part of the project`;
+//   --prune        when updating, delete files that are no longer part of the project
+// A folder that already has files is written over: changed files are replaced, other files are kept.`;
 
 const UPDATE_USAGE = `// Update an existing copy: run it inside the project folder (the one with package.json).
 // Run:   node <this file> [project-folder] [--dry-run] [--keep] [--no-install] [--force]
@@ -60,7 +60,7 @@ if (sha(gz) !== META.payloadSha) {
 }
 const tar = gunzipSync(gz);
 
-// 2. Make sure we are not writing over a different project.
+// 2. Read the manifest from an earlier run. Update scripts refuse a different project; setup scripts write anyway.
 let previous = null;
 try {
   previous = JSON.parse(readFileSync(join(target, MANIFEST), "utf8").replace(/^\\uFEFF/, ""));
@@ -82,33 +82,12 @@ if (UPDATE && !flags.has("--force")) {
   if (!sameProject(pkgName) && !(previous && sameProject(previous.name))) {
     fail('This folder holds a different project ("' + (pkgName ?? previous.name) + '"). Run it in your ' + META.name + " folder, or pass --force.");
   }
-} else if (!flags.has("--force")) {
-  if (previous && previous.name !== META.name) {
-    fail('This folder holds a different project ("' + previous.name + '"). Use an empty folder, or pass --force.');
-  }
-  if (!previous && existsSync(target)) {
-    // No manifest: an existing copy from git or a zip is fine, as long as it is this project.
-    let pkgName = null;
-    try {
-      pkgName = JSON.parse(readFileSync(join(target, "package.json"), "utf8")).name ?? null;
-    } catch {}
-    if (META.packageName && pkgName && pkgName !== META.packageName) {
-      fail('This folder holds a different project ("' + pkgName + '"). Use an empty folder, or pass --force.');
-    }
-    const allowed = new Set(META.knownEntries);
-    const present = readdirSync(target).filter((n) => n !== self && !IGNORABLE.has(n) && !n.startsWith(META.slug + "-"));
-    const others = present.filter((n) => !allowed.has(n));
-    const sameCopy = META.packageName !== null && pkgName === META.packageName;
-    if (others.length && !sameCopy) {
-      fail(
-        "The folder " + target + " has files that are not part of " + META.name + " (" + others.slice(0, 3).join(", ") + (others.length > 3 ? ", ..." : "") + ").\\n" +
-          "Run this in an empty folder: node " + self + ' "path/to/new-folder"\\n' +
-          "or write into this folder anyway: node " + self + " --force",
-      );
-    }
-    if (present.length) {
-      console.log("Found an existing copy of " + META.name + ". Changed files are overwritten; your other files are kept.");
-    }
+} else if (!UPDATE && existsSync(target)) {
+  // Setup never refuses: an empty folder gets the whole project, a non-empty one has the project's files written
+  // over it. Files that aren't part of the project are left alone.
+  const present = readdirSync(target).filter((n) => n !== self && !IGNORABLE.has(n) && !n.startsWith(META.slug + "-"));
+  if (present.length) {
+    console.log(target + " is not empty: " + META.name + (dryRun ? " would be" : " is") + " written over it. Changed files are overwritten; other files are kept.");
   }
 }
 
